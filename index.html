@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.5s ease;
+        }
+
+        body.work {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        body.short-break {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        body.long-break {
+            background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%);
+        }
+
+        .container {
+            text-align: center;
+            color: white;
+        }
+
+        .session-type {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+        }
+
+        .timer-circle {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin: 0 auto 2rem;
+        }
+
+        .timer-circle svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .timer-circle .bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-width: 8;
+        }
+
+        .timer-circle .progress {
+            fill: none;
+            stroke: white;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s ease;
+        }
+
+        .timer-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem;
+            font-weight: 200;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            border: 2px solid white;
+            border-radius: 50px;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 120px;
+        }
+
+        button:hover {
+            background: white;
+            color: #667eea;
+        }
+
+        button.primary {
+            background: white;
+            color: #667eea;
+        }
+
+        button.primary:hover {
+            background: transparent;
+            color: white;
+        }
+
+        .stats {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            opacity: 0.9;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 300;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+
+        .settings {
+            position: fixed;
+            bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        .settings span {
+            cursor: pointer;
+        }
+
+        .settings span:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="work">
+    <div class="container">
+        <div class="session-type" id="sessionType">Focus Time</div>
+
+        <div class="timer-circle">
+            <svg viewBox="0 0 100 100">
+                <circle class="bg" cx="50" cy="50" r="45"></circle>
+                <circle class="progress" id="progress" cx="50" cy="50" r="45"
+                    stroke-dasharray="282.7"
+                    stroke-dashoffset="0">
+                </circle>
+            </svg>
+            <div class="timer-display" id="timerDisplay">25:00</div>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" class="primary">Start</button>
+            <button id="resetBtn">Reset</button>
+            <button id="skipBtn">Skip</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="pomodoroCount">0</div>
+                <div class="stat-label">Pomodoros</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="totalTime">0m</div>
+                <div class="stat-label">Focus Time</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const CONFIG = {
+            work: 25 * 60,
+            shortBreak: 5 * 60,
+            longBreak: 15 * 60,
+            longBreakInterval: 4
+        };
+
+        // State
+        let state = {
+            timeLeft: CONFIG.work,
+            totalTime: CONFIG.work,
+            isRunning: false,
+            sessionType: 'work',
+            pomodoroCount: 0,
+            totalFocusTime: 0,
+            interval: null
+        };
+
+        // DOM Elements
+        const timerDisplay = document.getElementById('timerDisplay');
+        const sessionType = document.getElementById('sessionType');
+        const progress = document.getElementById('progress');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const skipBtn = document.getElementById('skipBtn');
+        const pomodoroCount = document.getElementById('pomodoroCount');
+        const totalTime = document.getElementById('totalTime');
+
+        // Circle circumference
+        const circumference = 2 * Math.PI * 45;
+        progress.style.strokeDasharray = circumference;
+
+        // Format time as MM:SS
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Update display
+        function updateDisplay() {
+            timerDisplay.textContent = formatTime(state.timeLeft);
+
+            // Update progress circle
+            const progressPercent = state.timeLeft / state.totalTime;
+            const offset = circumference * (1 - progressPercent);
+            progress.style.strokeDashoffset = offset;
+
+            // Update stats
+            pomodoroCount.textContent = state.pomodoroCount;
+            totalTime.textContent = Math.floor(state.totalFocusTime / 60) + 'm';
+
+            // Update page title
+            document.title = `${formatTime(state.timeLeft)} - ${state.sessionType === 'work' ? 'Focus' : 'Break'}`;
+        }
+
+        // Play notification sound
+        function playSound() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Play a pleasant chime
+            const frequencies = [523.25, 659.25, 783.99]; // C5, E5, G5
+
+            frequencies.forEach((freq, i) => {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.frequency.value = freq;
+                oscillator.type = 'sine';
+
+                const startTime = audioCtx.currentTime + (i * 0.15);
+                gainNode.gain.setValueAtTime(0.3, startTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.5);
+
+                oscillator.start(startTime);
+                oscillator.stop(startTime + 0.5);
+            });
+        }
+
+        // Send browser notification
+        function sendNotification(title, body) {
+            if (Notification.permission === 'granted') {
+                new Notification(title, { body, icon: '🍅' });
+            }
+        }
+
+        // Switch session type
+        function switchSession(type) {
+            state.sessionType = type;
+            document.body.className = type.replace('Break', '-break').toLowerCase();
+
+            switch (type) {
+                case 'work':
+                    state.totalTime = CONFIG.work;
+                    sessionType.textContent = 'Focus Time';
+                    break;
+                case 'shortBreak':
+                    state.totalTime = CONFIG.shortBreak;
+                    sessionType.textContent = 'Short Break';
+                    break;
+                case 'longBreak':
+                    state.totalTime = CONFIG.longBreak;
+                    sessionType.textContent = 'Long Break';
+                    break;
+            }
+
+            state.timeLeft = state.totalTime;
+            updateDisplay();
+        }
+
+        // Timer tick
+        function tick() {
+            state.timeLeft--;
+
+            if (state.sessionType === 'work') {
+                state.totalFocusTime++;
+            }
+
+            updateDisplay();
+
+            if (state.timeLeft <= 0) {
+                clearInterval(state.interval);
+                state.isRunning = false;
+                startBtn.textContent = 'Start';
+                startBtn.classList.add('primary');
+
+                playSound();
+
+                if (state.sessionType === 'work') {
+                    state.pomodoroCount++;
+                    updateDisplay();
+
+                    sendNotification('Pomodoro Complete!', `You've completed ${state.pomodoroCount} pomodoros. Time for a break!`);
+
+                    // Determine break type
+                    if (state.pomodoroCount % CONFIG.longBreakInterval === 0) {
+                        switchSession('longBreak');
+                    } else {
+                        switchSession('shortBreak');
+                    }
+                } else {
+                    sendNotification('Break Over!', 'Ready to focus again?');
+                    switchSession('work');
+                }
+            }
+        }
+
+        // Start/Pause
+        function toggleTimer() {
+            if (state.isRunning) {
+                clearInterval(state.interval);
+                state.isRunning = false;
+                startBtn.textContent = 'Resume';
+                startBtn.classList.add('primary');
+            } else {
+                state.interval = setInterval(tick, 1000);
+                state.isRunning = true;
+                startBtn.textContent = 'Pause';
+                startBtn.classList.remove('primary');
+            }
+        }
+
+        // Reset current session
+        function resetTimer() {
+            clearInterval(state.interval);
+            state.isRunning = false;
+            state.timeLeft = state.totalTime;
+            startBtn.textContent = 'Start';
+            startBtn.classList.add('primary');
+            updateDisplay();
+        }
+
+        // Skip to next session
+        function skipSession() {
+            clearInterval(state.interval);
+            state.isRunning = false;
+            startBtn.textContent = 'Start';
+            startBtn.classList.add('primary');
+
+            if (state.sessionType === 'work') {
+                if ((state.pomodoroCount + 1) % CONFIG.longBreakInterval === 0) {
+                    switchSession('longBreak');
+                } else {
+                    switchSession('shortBreak');
+                }
+            } else {
+                switchSession('work');
+            }
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', toggleTimer);
+        resetBtn.addEventListener('click', resetTimer);
+        skipBtn.addEventListener('click', skipSession);
+
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                toggleTimer();
+            } else if (e.code === 'KeyR') {
+                resetTimer();
+            } else if (e.code === 'KeyS') {
+                skipSession();
+            }
+        });
+
+        // Initialize
+        updateDisplay();
+    </script>
+</body>
+</html>
