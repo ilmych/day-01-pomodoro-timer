@@ -29,7 +29,7 @@ CURSOR_UP = "\033[A"
 
 
 def play_sound():
-    """Play a notification sound (macOS)."""
+    """Play a notification sound, falling back to a terminal bell."""
     # Try macOS system sounds
     sounds = [
         "/System/Library/Sounds/Glass.aiff",
@@ -103,6 +103,7 @@ def countdown(minutes, label, session_num=None):
 def run_pomodoro_session():
     """Run a complete Pomodoro session."""
     pomodoro_count = 0
+    completed_pomodoros = 0
 
     print("\n" + "=" * 50)
     print("   🍅 POMODORO TIMER")
@@ -118,6 +119,7 @@ def run_pomodoro_session():
             if not countdown(WORK_DURATION, "FOCUS TIME", pomodoro_count):
                 raise KeyboardInterrupt
 
+            completed_pomodoros += 1
             print(f"\n  ✅ Pomodoro #{pomodoro_count} complete!")
 
             # Determine break type
@@ -142,7 +144,7 @@ def run_pomodoro_session():
     except KeyboardInterrupt:
         print("\n")
         print("=" * 50)
-        print(f"  Session ended. Completed {pomodoro_count - 1} pomodoros.")
+        print(f"  Session ended. Completed {completed_pomodoros} pomodoros.")
         print("=" * 50)
 
 
