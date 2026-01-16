@@ -2,7 +2,7 @@
 
 > A Pomodoro timer with both CLI and browser versions.
 
-Built as part of [30 Days of Vibe Code](../README.md) - Day 1.
+Built as part of [30 Days of Vibe Coding](../README.md) - Day 1.
 
 ## What it does
 
